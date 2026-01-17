@@ -219,7 +219,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASL Real-time Recognition")
     parser.add_argument("--model", type=str, default=None, help="Path to trained model (.pth)")
     parser.add_argument("--model-type", type=str, default="mlp", choices=["mlp", "cnn"])
-    parser.add_argument("--hold-time", type=float, default=1.0, help="Seconds to hold pose")
+    parser.add_argument("--hold-time", type=float, default=2.0, help="Seconds to hold pose")
     parser.add_argument("--camera", type=int, default=0, help="Camera ID")
 
     args = parser.parse_args()
