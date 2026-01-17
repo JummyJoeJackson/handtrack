@@ -110,7 +110,8 @@ def train_model(
     print(f"Using device: {device}")
 
     # Load dataset
-    dataset = ASLLandmarkDataset(csv_path, apply_normalization=True)
+    # Note: main.py already normalizes data (center + scale), so skip extra normalization
+    dataset = ASLLandmarkDataset(csv_path, apply_normalization=False)
 
     # Split into train/validation
     val_size = int(len(dataset) * val_split)

@@ -81,15 +81,31 @@ class ASLRecognizer:
             return None
 
         hand = results.multi_hand_landmarks[0]
+
+        # Normalize same way as main.py: center on wrist + scale by hand size
+        wrist = hand.landmark[0]
+        middle_mcp = hand.landmark[9]
+
+        scale_factor = ((wrist.x - middle_mcp.x)**2 +
+                        (wrist.y - middle_mcp.y)**2 +
+                        (wrist.z - middle_mcp.z)**2)**0.5
+
+        if scale_factor == 0:
+            scale_factor = 1
+
         landmarks = []
         for lm in hand.landmark:
-            landmarks.extend([lm.x, lm.y, lm.z])
+            landmarks.extend([
+                (lm.x - wrist.x) / scale_factor,
+                (lm.y - wrist.y) / scale_factor,
+                (lm.z - wrist.z) / scale_factor
+            ])
 
         return np.array(landmarks, dtype=np.float32)
 
     def predict(self, landmarks: np.ndarray) -> tuple[str, float]:
-        normalized = normalize_landmarks(landmarks)
-        tensor = torch.tensor(normalized, dtype=torch.float32).unsqueeze(0).to(self.device)
+        # Data is already normalized by extract_landmarks (same as main.py)
+        tensor = torch.tensor(landmarks, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             logits = self.model(tensor)
