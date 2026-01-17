@@ -1,6 +1,7 @@
 from sqlalchemy.orm import sessionmaker
 from UserSetUp import engine, User, UserProgress, init_db
 from datetime import datetime, timedelta
+import time
 
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -34,6 +35,12 @@ def delete_user(username):
     if not user:
         print(f"User '{username}' not found.")
         return False
+
+    print(f"WARNING: Are you sure you want to delete user '{user.username}' and all associated data?")
+    choice = input("Type 'yes' to confirm, or anything else to cancel: ").lower()
+    if choice != 'yes':
+        print("Deletion cancelled.")
+        return False
     
     session.query(UserProgress).filter_by(user_id=user.id).delete()
     session.delete(user)
@@ -51,6 +58,21 @@ def print_user_stats(user):
     print(f"Total XP:         {user.total_xp}")
     print(f"Last Active:      {user.last_practice_date.strftime('%Y-%m-%d %H:%M')}")
     print("="*30 + "\n")
+
+def simulate_gameplay(user):
+    """Simulates the test attempts."""
+    print(f"\n🎮 Starting practice session for {user.username}...")
+    time.sleep(1)
+    
+    print("\n--- Attempt 1: You sign 'A' (Target: A) ---")
+    record_attempt(user.username, "A", True)
+    time.sleep(1)
+    
+    print("\n--- Attempt 2: You sign 'B' (Target: B) ---")
+    record_attempt(user.username, "B", False)
+    time.sleep(1)
+    
+    print("\nSession Complete!")
 
 def login():
     """The login screen."""
@@ -126,27 +148,37 @@ def record_attempt(username, letter, is_correct):
 
     session.commit()
 
+def main_menu(user):
+    """The main hub for a logged-in user."""
+    while True:
+        print(f"\n--- MAIN MENU ({user.username}) ---")
+        print("1. Start Playing (Simulate)")
+        print("2. Check Stats")
+        print("3. Quit")
+        print("4. Delete Account")
+        
+        choice = input("Select an option (1-4): ")
+        
+        if choice == '1':
+            simulate_gameplay(user)
+        elif choice == '2':
+            print_user_stats(user)
+        elif choice == '3':
+            print("Goodbye!")
+            break
+        elif choice == '4':
+            if delete_user(user.username):
+                break
+        else:
+            print("Invalid option, please try again.")
+
 # --- TEST ---
 if __name__ == "__main__":
     init_db()
-
-    current_user = login()
-
-    if current_user:
-        cmd = input("Type 'delete' to delete this account, or anything else to exit: ")
-        if cmd.lower() == 'delete':
-            delete_user(current_user.username)
-
-
-    """
-    me = create_user("Student")
     
-    print("\n--- Attempt 1: Correct 'A' ---")
-    record_attempt("Student", "A", True)
-
-    print("\n--- Attempt 2: Incorrect 'B' ---")
-    record_attempt("Student", "B", False)
-
-    refreshed_user = get_user("Student")
-    print(f"\nFINAL STATS: XP={refreshed_user.total_xp}, Streak={refreshed_user.current_streak}")
-    """
+    # 1. Login
+    current_user = login()
+    
+    # 2. If login successful, go to main menu
+    if current_user:
+        main_menu(current_user)
