@@ -239,6 +239,31 @@ def get_lesson_status(user, lesson):
             
     return status
 
+def skip_current_lesson(user):
+    """
+    Cheat code: Instantly masters all letters in the current lesson.
+    """
+    lesson = get_next_lesson(user)
+    if not lesson:
+        print("   You have already finished everything!")
+        return
+
+    print(f"   Skipping '{lesson.title}'...")
+    letters = lesson.target_letters.split(',')
+    
+    for letter in letters:
+        # Find or create progress entry
+        progress = session.query(UserProgress).filter_by(user_id=user.id, letter=letter).first()
+        if not progress:
+            progress = UserProgress(user_id=user.id, letter=letter)
+            session.add(progress)
+        
+        # Set to max mastery
+        progress.mastery_score = 100
+    
+    session.commit()
+    print(f" Lesson '{lesson.title}' marked as complete!")
+
 # --- TEST ---
 if __name__ == "__main__":
     init_db()
