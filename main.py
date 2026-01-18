@@ -15,7 +15,7 @@ MODEL_PATH = "hand_landmarker.task"
 TRAINED_MODEL_PATH = "asl_model.pth"
 TARGET_HOLD_TIME = 2.0
 
-# --- AI BRIDGE (Your existing class) ---
+# --- AI BRIDGE ---
 class ASLInferenceBridge:
     def __init__(self, model_path):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,25 +53,31 @@ class ASLInferenceBridge:
             return self.idx_to_label.get(idx, "?") if isinstance(self.idx_to_label, dict) else ASL_CLASSES[idx]
         return "?"
 
-# --- THE GAME LOOP (Moved to a function) ---
-def practice_mode(user, ai_brain):
+# --- THE GAME LOOP ---
+def practice_mode(user, ai_brain, specific_lesson=None):
     # Setup Camera & MediaPipe
     base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
     options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1)
     landmarker = vision.HandLandmarker.create_from_options(options)
     cap = cv2.VideoCapture(0)
 
-    # Initial Lesson State
-    current_lesson = user_manager.get_next_lesson(user)
-    if not current_lesson:
-        print("All lessons complete! Reset stats to play again.")
-        return
+    # 1. Determine Starting Lesson
+    if specific_lesson:
+        current_lesson = specific_lesson
+        print(f"\n--- REVIEW MODE: {current_lesson.title} ---")
+    else:
+        current_lesson = user_manager.get_next_lesson(user)
+        if not current_lesson:
+            print("All lessons complete! Use 'Select Level' to review.")
+            return
+        print(f"\n--- CAMPAIGN MODE: {current_lesson.title} ---")
 
+    # 2. Pick initial letter
     stats = user_manager.get_lesson_status(user, current_lesson)
     target_letter = min(stats, key=stats.get)
-    hold_start_time = None
     
-    print("\n--- STARTING PRACTICE (Press 'q' to quit) ---")
+    hold_start_time = None
+    print(f"TASK: Sign '{target_letter}' (Press 'q' to quit)")
 
     while True:
         success, frame = cap.read()
@@ -108,13 +114,24 @@ def practice_mode(user, ai_brain):
             
             if elapsed >= TARGET_HOLD_TIME:
                 user_manager.record_attempt(user.username, target_letter, True)
-                current_lesson = user_manager.get_next_lesson(user)
-                if current_lesson:
+                
+                # Logic Branch: Review Mode vs Campaign Mode
+                if specific_lesson:
+                    # STAY in the same lesson, pick a new letter
                     stats = user_manager.get_lesson_status(user, current_lesson)
                     target_letter = min(stats, key=stats.get)
-                    hold_start_time = None
+                    status_msg = f"CORRECT! Next: {target_letter}"
                 else:
-                    status_msg = "LESSON COMPLETE!"
+                    # AUTO-ADVANCE to next lesson if needed
+                    current_lesson = user_manager.get_next_lesson(user)
+                    if current_lesson:
+                        stats = user_manager.get_lesson_status(user, current_lesson)
+                        target_letter = min(stats, key=stats.get)
+                        status_msg = f"CORRECT! Next: {target_letter}"
+                    else:
+                        status_msg = "LESSON COMPLETE!"
+                
+                hold_start_time = None
         else:
             hold_start_time = None
 
@@ -136,29 +153,37 @@ def main():
     current_user = user_manager.login()
     if not current_user: return
 
-    # Load AI once at startup
     ai_brain = ASLInferenceBridge(TRAINED_MODEL_PATH)
 
     while True:
         print(f"\n=== MAIN MENU ({current_user.username}) ===")
-        print("1. Practice Mode (Camera)")
-        print("2. Check Stats")
-        print("3. Skip Current Level (Cheat)")
-        print("4. Delete Account")
-        print("5. Quit")
+        print("1. Practice Next Level (Auto)")
+        print("2. Select Level to Practice")
+        print("3. Check Level Stats")
+        print("4. Global Stats")
+        print("5. Skip Current Level (Cheat)")
+        print("6. Delete Account")
+        print("7. Quit")
         
         choice = input("Select an option: ")
         
         if choice == '1':
             practice_mode(current_user, ai_brain)
         elif choice == '2':
-            user_manager.print_user_stats(current_user)
+            # Pick a lesson, then practice IT specifically
+            selected_lesson = user_manager.select_lesson_menu()
+            if selected_lesson:
+                practice_mode(current_user, ai_brain, specific_lesson=selected_lesson)
         elif choice == '3':
-            user_manager.skip_current_lesson(current_user)
+            user_manager.check_lesson_stats(current_user)
         elif choice == '4':
-            if user_manager.delete_user(current_user.username):
-                return # Exit if user is deleted
+            user_manager.print_user_stats(current_user)
         elif choice == '5':
+            user_manager.skip_current_lesson(current_user)
+        elif choice == '6':
+            if user_manager.delete_user(current_user.username):
+                return
+        elif choice == '7':
             print("Goodbye!")
             break
         else:
