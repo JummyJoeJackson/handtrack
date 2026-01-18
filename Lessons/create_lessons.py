@@ -33,7 +33,7 @@ def create_lessons():
         session.add(lesson)
     
     session.commit()
-    print("✅ Successfully added 5 lessons!")
+    print("Successfully added 5 lessons!")
 
 if __name__ == "__main__":
     create_lessons()
