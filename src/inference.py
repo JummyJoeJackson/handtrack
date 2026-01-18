@@ -170,7 +170,7 @@ class ASLRecognizer:
         display_text = self.hold_tracker.confirmed_text[-50:] if len(self.hold_tracker.confirmed_text) > 50 else self.hold_tracker.confirmed_text
         cv2.putText(frame, display_text, (10, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-        cv2.putText(frame, "Hold pose to confirm | 'c' clear | 'q' quit", (10, h - 5),
+        cv2.putText(frame, "Hold pose | Space | Backspace | 'c' clear | 'q' quit", (10, h - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
 
         return frame
@@ -205,6 +205,10 @@ class ASLRecognizer:
                 break
             elif key == ord('c'):
                 self.hold_tracker.confirmed_text = ""
+            elif key == ord(' '):
+                self.hold_tracker.confirmed_text += ' '
+            elif key == 8:  # Backspace
+                self.hold_tracker.confirmed_text = self.hold_tracker.confirmed_text[:-1]
 
         cap.release()
         cv2.destroyAllWindows()
