@@ -73,7 +73,6 @@ python src/inference.py --model models/asl_model.pth --hold-time 1.5 --camera 0
 ## Training
 
 ### Collect Custom Data
-```bash
 python main.py
 Press letter keys (a-z) while showing hand signs to capture samples.
 
