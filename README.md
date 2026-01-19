@@ -7,7 +7,7 @@ An American Sign Laguange recongnition engine that works in real-time by using t
 ## Authors
 
 - [**@JummyJoeJackson**](https://github.com/JummyJoeJackson) (Handtracking)
-- [**@danielkwan-dev**](https://github.com/danielkwan-dev) (ASL Recognition)
+- [**@danielkwan-dev**](https://github.com/danielkwan-dev) (ASL Recognition/ML Pipeline)
 - [**@RatanotamKehal**](https://github.com/RatanotamKehal) (Game & Database)
 
 
