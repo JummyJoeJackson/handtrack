@@ -74,7 +74,7 @@ python inference.py --model asl_model.pth
 #### Options
 
 ```bash
-python src/inference.py --model models/asl_model.pth --hold-time 1.5 --camera 0
+python inference.py --model models/asl_model.pth --hold-time 1.5 --camera 0
 ```
 - `--hold-time`: Seconds to hold pose before confirming (default: 2.0)
 - `--camera`: Camera ID if you have multiple webcams (default: 0)
