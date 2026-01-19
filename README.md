@@ -61,14 +61,12 @@ handtrack/
   pip install -r requirements.txt
 ```
 
-#### Run the Application
+#### Run the Application or Run Simple Inference (No Game)
 
 ```bash
 python main.py
 ```
-
-#### Run Simple Inference (No Game)
-
+or
 ```bash
 python inference.py --model asl_model.pth
 ```
