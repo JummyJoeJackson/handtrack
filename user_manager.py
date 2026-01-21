@@ -1,7 +1,12 @@
-import time
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker
 from UserSetUp import engine, User, UserProgress, Lesson, init_db
+from rich.console import Console
+from rich.prompt import Prompt, Confirm
+from rich.table import Table
+from rich.panel import Panel
+
+console = Console()
 
 
 Session = sessionmaker(bind=engine)
@@ -20,45 +25,45 @@ def get_user(username):
 def create_user(username):
     clean_name = format_username(username)
     if get_user(clean_name):
-        print(f"⚠️  User '{clean_name}' already exists.")
+        console.print(f"⚠️  [warning]User '{clean_name}' already exists.[/warning]")
         return get_user(clean_name)
 
     new_user = User(username=clean_name)
     session.add(new_user)
     session.commit()
-    print(f"✅ Created new user: {clean_name}")
+    console.print(f"✅ [success]Created new user: {clean_name}[/success]")
     return new_user
 
 
 def delete_user(username):
     user = get_user(username)
     if not user:
-        print(f"❌ User '{username}' not found.")
+        console.print(f"❌ [error]User '{username}' not found.[/error]")
         return False
     
-    print(f"\n⚠️  WARNING: Are you sure you want to delete user '{user.username}' and all associated data?")
-    choice = input("   Type 'yes' to confirm: ").lower()
-    
-    if choice != 'yes':
-        print("   Deletion cancelled.")
+    console.print(f"\n⚠️  [bold red]WARNING: Are you sure you want to delete user '{user.username}' and all associated data?[/bold red]")
+    if not Confirm.ask("   Confirm deletion?"):
+        console.print("   [info]Deletion cancelled.[/info]")
         return False
     
     session.query(UserProgress).filter_by(user_id=user.id).delete()
     session.delete(user)
     session.commit()
-    print(f"🗑️  Deleted user: {user.username}.")
+    console.print(f"🗑️  [success]Deleted user: {user.username}.[/success]")
     return True
 
 
 def print_user_stats(user):
     session.refresh(user)
-    print("\n" + "="*30)
-    print(f"👤  PLAYER: {user.username}")
-    print("-" * 30)
-    print(f"🔥  Current Streak:   {user.current_streak} days")
-    print(f"⭐  Total XP:         {user.total_xp}")
-    print(f"📅  Last Active:      {user.last_practice_date.strftime('%Y-%m-%d %H:%M')}")
-    print("="*30 + "\n")
+    table = Table(title=f"👤 PLAYER: {user.username}", show_header=True, header_style="bold magenta")
+    table.add_column("Stat", style="cyan")
+    table.add_column("Value", style="green")
+    
+    table.add_row("🔥 Current Streak", f"{user.current_streak} days")
+    table.add_row("⭐ Total XP", str(user.total_xp))
+    table.add_row("📅 Last Active", user.last_practice_date.strftime('%Y-%m-%d %H:%M'))
+    
+    console.print(table)
 
 
 def get_all_lessons():
@@ -70,24 +75,24 @@ def select_lesson_menu():
     """Interactive menu to pick a lesson from the database."""
     lessons = get_all_lessons()
     if not lessons:
-        print("   No lessons found in database.")
+        console.print("   [warning]No lessons found in database.[/warning]")
         return None
 
-    print("\n   --- AVAILABLE LESSONS ---")
-    for l in lessons:
-        print(f"   {l.id}. {l.title} (Targets: {l.target_letters})")
+    table = Table(title="AVAILABLE LESSONS", show_header=True, header_style="bold magenta")
+    table.add_column("ID", style="cyan")
+    table.add_column("Title", style="green")
+    table.add_column("Targets", style="yellow")
     
-    try:
-        choice = int(input("\n   Enter Lesson ID to select: "))
-        selected = session.query(Lesson).filter_by(id=choice).first()
-        if selected:
-            return selected
-        else:
-            print("   Invalid ID.")
-            return None
-    except ValueError:
-        print("   Invalid input.")
-        return None
+    for l in lessons:
+        table.add_row(str(l.id), l.title, l.target_letters)
+    
+    console.print(table)
+    
+    choice = Prompt.ask("Enter Lesson ID to select", choices=[str(l.id) for l in lessons] + ["q"])
+    if choice == "q": return None
+    
+    selected = session.query(Lesson).filter_by(id=int(choice)).first()
+    return selected
 
 
 def check_lesson_stats(user):
@@ -96,13 +101,17 @@ def check_lesson_stats(user):
     if not lesson: return
 
     stats = get_lesson_status(user, lesson)
-    print(f"\n   --- MASTERY: {lesson.title} ---")
-    for letter, score in stats.items():
-        # Visual bar: "A: 50% [█████     ]"
-        bar_len = score // 10
-        bar = "█" * bar_len + "." * (10 - bar_len)
-        print(f"   {letter}: {score:3}% [{bar}]")
+    table = Table(title=f"MASTERY: {lesson.title}", show_header=True, header_style="bold magenta")
+    table.add_column("Letter", style="cyan")
+    table.add_column("Mastery", style="green")
+    table.add_column("Progress Bar", style="yellow")
     
+    for letter, score in stats.items():
+        bar_len = score // 10
+        bar = "█" * bar_len + "░" * (10 - bar_len)
+        table.add_row(letter, f"{score}%", f"[{bar}]")
+    
+    console.print(table)
     input("\n   Press Enter to continue...")
 
 
@@ -169,25 +178,26 @@ def record_attempt(username, letter, is_correct):
         user.last_practice_date = now
 
         progress.mastery_score = min(100, progress.mastery_score + 20) 
-        print(f"   ✅ Correct! +{xp_gain} XP | '{letter}' Mastery: {progress.mastery_score}%")
+        console.print(f"   ✅ [success]Correct! +{xp_gain} XP | '{letter}' Mastery: {progress.mastery_score}%[/success]")
     else:
         progress.mastery_score = max(0, progress.mastery_score - 10)
-        print(f"   ❌ Incorrect. '{letter}' Mastery: {progress.mastery_score}%")
+        console.print(f"   ❌ [error]Incorrect. '{letter}' Mastery: {progress.mastery_score}%[/error]")
 
     session.commit()
 
 
 def login():
-    print("\n👋 Welcome to the ASL Trainer!")
-    raw_name = input("   Please enter your name: ")
+    console.print(Panel("[bold cyan]Welcome to SignCLI![/bold cyan]", expand=False))
+    raw_name = Prompt.ask("Please enter your name")
     if not raw_name: return None
 
     user = get_user(raw_name)
     if user:
-        print(f"\n   Welcome back, {user.username}!")
+        console.print(f"\n   [info]Welcome back, {user.username}![/info]")
     else:
-        print(f"\n   User '{format_username(raw_name)}' not found.")
-        choice = input("   Create new account? (y/n): ").lower()
-        if choice == 'y': user = create_user(raw_name)
-        else: return None
+        console.print(f"\n   [warning]User '{format_username(raw_name)}' not found.[/warning]")
+        if Confirm.ask("   Create new account?"):
+            user = create_user(raw_name)
+        else:
+            return None
     return user

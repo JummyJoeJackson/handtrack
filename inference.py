@@ -6,6 +6,31 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from model import ASLLandmarkMLP, ASLLandmarkNet, ASL_CLASSES, get_model
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import logging
+logging.getLogger('mediapipe').setLevel(logging.ERROR)
+
+import sys
+from contextlib import contextmanager
+
+@contextmanager
+def suppress_stdout_stderr():
+    """A context manager that redirects stdout and stderr to devnull at the FD level."""
+    stderr_fd = sys.stderr.fileno()
+    stdout_fd = sys.stdout.fileno()
+    old_stderr = os.dup(stderr_fd)
+    old_stdout = os.dup(stdout_fd)
+    try:
+        with open(os.devnull, 'w') as devnull:
+            os.dup2(devnull.fileno(), stderr_fd)
+            os.dup2(devnull.fileno(), stdout_fd)
+            yield
+    finally:
+        os.dup2(old_stderr, stderr_fd)
+        os.dup2(old_stdout, stdout_fd)
+        os.close(old_stderr)
+        os.close(old_stdout)
 
 
 HAND_LANDMARKER_PATH = "hand_landmarker.task"
@@ -66,24 +91,29 @@ class ASLRecognizer:
             min_hand_detection_confidence=0.5,
             min_hand_presence_confidence=0.5
         )
-        self.landmarker = vision.HandLandmarker.create_from_options(self.options)
+        with suppress_stdout_stderr():
+            self.landmarker = vision.HandLandmarker.create_from_options(self.options)
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        if model_path:
-            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
-            self.model = get_model(checkpoint.get('model_type', model_type),
-                                   checkpoint.get('num_classes', 29))
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.idx_to_label = checkpoint.get('idx_to_label', {i: c for i, c in enumerate(ASL_CLASSES)})
-        else:
-            self.model = get_model(model_type)
-            self.idx_to_label = {i: c for i, c in enumerate(ASL_CLASSES)}
+            if model_path:
+                checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
+                self.model = get_model(checkpoint.get('model_type', model_type),
+                                       checkpoint.get('num_classes', 29))
+                self.model.load_state_dict(checkpoint['model_state_dict'])
+                self.idx_to_label = checkpoint.get('idx_to_label', {i: c for i, c in enumerate(ASL_CLASSES)})
+            else:
+                self.model = get_model(model_type)
+                self.idx_to_label = {i: c for i, c in enumerate(ASL_CLASSES)}
 
-        self.model = self.model.to(self.device)
-        self.model.eval()
+            self.model = self.model.to(self.device)
+            self.model.eval()
 
-        self.hold_tracker = HoldToConfirm(hold_time=hold_time)
+            self.hold_tracker = HoldToConfirm(hold_time=hold_time)
+            # Warm-up detection to catch initial C++ logs
+            dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            self.extract_landmarks(dummy_frame)
+
         self.last_landmarks = None
 
     def extract_landmarks(self, frame) -> tuple[np.ndarray | None, list | None]:
@@ -177,9 +207,10 @@ class ASLRecognizer:
         return frame
 
     def run(self, camera_id: int = 0):
-        cap = cv2.VideoCapture(camera_id)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        with suppress_stdout_stderr():
+            cap = cv2.VideoCapture(camera_id)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         print("ASL Recognizer started. Press 'q' to quit, 'c' to clear text.")
 
@@ -189,14 +220,17 @@ class ASLRecognizer:
                 break
 
             frame = cv2.flip(frame, 1)
-            landmarks, hand_landmarks = self.extract_landmarks(frame)
+            
+            # Silence detection loop for C++ noise
+            with suppress_stdout_stderr():
+                landmarks, hand_landmarks = self.extract_landmarks(frame)
 
-            if landmarks is not None:
-                letter, confidence = self.predict(landmarks)
-                letter, hold_progress, confirmed = self.hold_tracker.update(letter, confidence)
-                self.draw_hand(frame, hand_landmarks)
-            else:
-                letter, confidence, hold_progress, confirmed = "---", 0.0, 0.0, False
+                if landmarks is not None:
+                    letter, confidence = self.predict(landmarks)
+                    letter, hold_progress, confirmed = self.hold_tracker.update(letter, confidence)
+                    self.draw_hand(frame, hand_landmarks)
+                else:
+                    letter, confidence, hold_progress, confirmed = "---", 0.0, 0.0, False
 
             frame = self.draw_ui(frame, letter, confidence, hold_progress, confirmed)
             cv2.imshow("ASL Recognizer", frame)

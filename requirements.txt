@@ -5,3 +5,5 @@ pandas>=2.0.0
 torch>=2.0.0
 scikit-learn>=1.3.0
 sqlalchemy>=2.0.0
+rich
+pyfiglet
