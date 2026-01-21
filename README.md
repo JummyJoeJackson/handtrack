@@ -1,5 +1,5 @@
 
-# Real-Time ASL Recognition Engine
+# SignU | Real-Time ASL Recognition Engine
 
 An American Sign Laguange recongnition engine that works in real-time by using two models. One for recognizing hands and their shapes, and another custom convolutional neural network for recognizing which gesture corresponds to each letter.
 
