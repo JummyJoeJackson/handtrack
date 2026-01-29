@@ -1,7 +1,7 @@
 
 # SignCLI | Real-Time ASL Recognition Engine
 
- One for recognizing hands and their shapes, and another custom convolutional neural network for recognizing which gesture corresponds to each letter.
+An American Sign Laguange recongnition engine that works in real-time by using two models. One for recognizing hands and their shapes, and another custom convolutional neural network for recognizing which gesture corresponds to each letter.
 
 
 ## Authors
